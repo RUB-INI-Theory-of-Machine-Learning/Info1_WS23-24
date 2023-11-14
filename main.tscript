@@ -1,66 +1,72 @@
-# Define block size for a field of 10x20. 
-# We calculate the vertical and horizontal block size and take the minimum. 
-# This way we can guarantee, that the playfield is always completely visible. 
-var block_size = math.floor(math.min(canvas.height()/20, canvas.width()/10));
+# Configuration
+var playfield_size  = {"x": 10, "y": 20};
+
+# Define block size for a field of 10x20.
+# We calculate the vertical and horizontal block size and take the minimum.
+# This way we can guarantee, that the playfield is always completely visible.
+var block_size = math.floor(math.min(
+	canvas.height()/(playfield_size["y"]+2),
+	canvas.width()/(playfield_size["x"]+2)
+	));
 
 # We define the outline to be 1/8 of the block size
 var outline_size = block_size/8;
 
-# A dictionary of dictionaries of arrays containing the RGB values for the colors. 
+# A dictionary of dictionaries of arrays containing the RGB values for the colors.
 # We will add more colors later
 var colors = {
-			"f": {
-				"base": [119, 119, 119],
-				"light": [153, 153, 153] ,
-				"dark": [51, 51, 51]
-			},
-			"o": # yellow 
-				{
-					"base": [204, 204, 0],
-			  		"light": [255, 255, 0],
-		  	  		"dark": [153, 153, 0]
-		     	},
-			"t": # violet
-				{
-					"base": [153, 0, 204],
-			  		"light": [204, 0, 255],
-		  	  		"dark": [102, 0, 153]
-		     	},
-			"s": {
-					"base": [0, 204, 0],
-					"light": [0, 255, 0],
-					"dark": [0, 153, 0]
-				},
-			"z": {
-				"base": [204, 0, 0],
-				"light": [255, 0, 0],
-				"dark": [153, 0, 0],
-			},
-			"j": {
-				"base": [204, 0, 0],
-				"light": [255, 0, 0],
-				"dark": [153, 0, 0],
-			},
-			"l": {
-				"base": [204, 102, 0],
-				"light": [255, 136, 0],
-				"dark": [153, 68, 0],
-			},
-			"i": {
-				"base": [0, 204, 204],
-				"light": [0, 255, 255],
-				"dark": [0, 153, 153],
-			}
+            "f": {
+                "base": [119, 119, 119],
+                "light": [153, 153, 153] ,
+                "dark": [51, 51, 51]
+            },
+            "o": # yellow
+                {
+                    "base": [204, 204, 0],
+                      "light": [255, 255, 0],
+                        "dark": [153, 153, 0]
+                 },
+            "t": # violet
+                {
+                    "base": [153, 0, 204],
+                      "light": [204, 0, 255],
+                        "dark": [102, 0, 153]
+                 },
+            "s": {
+                    "base": [0, 204, 0],
+                    "light": [0, 255, 0],
+                    "dark": [0, 153, 0]
+                },
+            "z": {
+                "base": [204, 0, 0],
+                "light": [255, 0, 0],
+                "dark": [153, 0, 0],
+            },
+            "j": {
+                "base": [204, 0, 0],
+                "light": [255, 0, 0],
+                "dark": [153, 0, 0],
+            },
+            "l": {
+                "base": [204, 102, 0],
+                "light": [255, 136, 0],
+                "dark": [153, 68, 0],
+            },
+            "i": {
+                "base": [0, 204, 204],
+                "light": [0, 255, 255],
+                "dark": [0, 153, 153],
+            }
 };
 
 var tetrominos = {
-	"o": [
-			[0,0,0,0],
-			[0,"o","o",0],
-			[0,"o","o",0],
-			[0,0,0,0],
-		],
-	"t":[
+    "o": [[
+            [0,0,0,0],
+            [0,"o","o",0],
+            [0,"o","o",0],
+            [0,0,0,0],
+        ]],
+    "t":[
             # The first rotation of the tetromino
             [
                 [ 0,  0,  0, 0 ], # the first row
@@ -72,7 +78,7 @@ var tetrominos = {
             [[0,"t",0,0],["t","t","t",0],[0,0,0,0]],
             [[0,"t",0,0],[0,"t","t",0],[0,"t",0,0]]
         ],
-	 "s":[
+     "s":[
             [[0,0,0,0],[0,"s","s",0],["s","s",0,0]],
             [["s",0,0,0],["s","s",0,0],[0,"s",0,0]]
         ],
@@ -99,86 +105,106 @@ var tetrominos = {
 };
 
 function insert_tetromino(playfield, column, row, rotation, type){
-	var tetromino = tetrominos[type][rotation];
-	
-	for var i in 0:tetromino.size() do 
-		for var j in 0:tetromino[i].size() do
-			if tetromino[i][j] != 0 then playfield[column + i][row + j] = tetromino[i][j];
+    var tetromino = tetrominos[type][rotation];
+
+    for var i in 0:tetromino.size() do
+        for var j in 0:tetromino[i].size() do
+            if tetromino[i][j] != 0 then playfield[column + i][row + j] = tetromino[i][j];
 }
 
 function remove_tetromino(playfield, column, row, rotation, type){
-	var tetromino = tetrominos[type][rotation];
+    var tetromino = tetrominos[type][rotation];
 
-	for var i in 0:tetromino.size() do 
-		for var j in 0:tetromino[i].size() do
-			if tetromino[i][j] != 0 then playfield[column + i][row + j] = 0;
+    for var i in 0:tetromino.size() do
+        for var j in 0:tetromino[i].size() do
+            if tetromino[i][j] != 0 then playfield[column + i][row + j] = 0;
 }
 
-# This is the function that draws the block for us. It takes pos_x and pos_y as arguments. 
-# Both are in the unit of blocks, as the conversion to pixels happens in this function. 
+function check_collision(playfield, column, row, rotation, type){
+	 var tetromino = tetrominos[type][rotation];
+
+	 for var i in 0:tetromino.size() do
+        for var j in 0:tetromino[i].size() do {
+			if tetromino[i][j] != 0 then
+			 	if playfield[column + i][row + j] != 0 then
+			return true;
+	}
+	return false;
+}
+
+# This is the function that draws the block for us. It takes pos_x and pos_y as arguments.
+# Both are in the unit of blocks, as the conversion to pixels happens in this function.
 # The blocks get drawn as a square with light color, a triangle with darker color and a smaller square with base color on top of each other
 function draw_block(column, row, color) {
-	var pos_x = row * block_size;
-	var pos_y = column * block_size;
-	
-	# lighter edges
-	canvas.setFillColor(colors[color]["light"][0]/255, 
-						colors[color]["light"][1]/255, 
-						colors[color]["light"][2]/255);
-	canvas.fillRect(pos_x, pos_y, block_size, block_size);
+    var pos_x = row * block_size;
+    var pos_y = column * block_size;
 
-	# triangle with dark color for the area bottom right
-	canvas.setFillColor(colors[color]["dark"][0]/255,
-						colors[color]["dark"][1]/255, 
-						colors[color]["dark"][2]/255);
-	canvas.fillArea([
-						[pos_x + block_size, pos_y], 
-						[pos_x, pos_y + block_size], 
-						[pos_x + block_size, pos_y + block_size]
-					]);
+    # lighter edges
+    canvas.setFillColor(colors[color]["light"][0]/255,
+                        colors[color]["light"][1]/255,
+                        colors[color]["light"][2]/255);
+    canvas.fillRect(pos_x, pos_y, block_size, block_size);
 
-	# smaller square in the middle
-	canvas.setFillColor(colors[color]["base"][0] / 255, 
-						colors[color]["base"][1] / 255, 
-						colors[color]["base"][2]/255);
-	canvas.fillRect(
-		pos_x+outline_size,
-		pos_y+outline_size,
-		block_size-2*outline_size,
-		block_size-2*outline_size
-	);
+    # triangle with dark color for the area bottom right
+    canvas.setFillColor(colors[color]["dark"][0]/255,
+                        colors[color]["dark"][1]/255,
+                        colors[color]["dark"][2]/255);
+    canvas.fillArea([
+                        [pos_x + block_size, pos_y],
+                        [pos_x, pos_y + block_size],
+                        [pos_x + block_size, pos_y + block_size]
+                    ]);
+
+    # smaller square in the middle
+    canvas.setFillColor(colors[color]["base"][0] / 255,
+                        colors[color]["base"][1] / 255,
+                        colors[color]["base"][2]/255);
+    canvas.fillRect(
+        pos_x+outline_size,
+        pos_y+outline_size,
+        block_size-2*outline_size,
+        block_size-2*outline_size
+    );
 }
 
 var playfield = [];
-for 0:20 do playfield.push(Array(10,0));
-
+playfield.push(Array(playfield_size["x"] + 2, "f"));
+for 0:playfield_size["y"] do {
+	var row = ["f"];
+	for 0:playfield_size["x"] do row.push(0);
+	row.push("f");
+	playfield.push(row);
+};
+playfield.push(Array(playfield_size["x"] + 2, "f"));
 
 # Starting position for the block
-var x = 2;
-var y = 5; 
+var x = Integer((playfield_size["x"] + 2)/2 - 2);
+var y = 1;
 var rotation = 0;
+var type = "s";
 
 # To create the illusion of falling, we run an inifinte loop
 # where we draw the block, wait, then change the y position
 # reset the canvas and start again.
-while y < 20 do {
-	# reset canvas
-	canvas.setFillColor(1, 1, 1);
-	canvas.clear();
-	
-	insert_tetromino(playfield, y, x, rotation, "t");
-	
-	for var column in 0:playfield.size() do
-		for var row in 0:playfield[column].size() do	
-			if (playfield[column][row] != 0) then draw_block(column, row, playfield[column][row]);
-	
-	remove_tetromino(playfield, y, x, rotation, "t");
+while true do {
+    # reset canvas
+    canvas.setFillColor(1, 1, 1);
+    canvas.clear();
 
+    insert_tetromino(playfield, y, x, rotation, type);
 
-  	# change the y position of the block
-	y = y + 1;
-	rotation = (rotation + 1) % tetrominos["t"].size();
+    for var column in 0:playfield.size() do
+        for var row in 0:playfield[column].size() do
+            if (playfield[column][row] != 0) then draw_block(column, row, playfield[column][row]);
+
+    remove_tetromino(playfield, y, x, rotation, type);
+
+	if check_collision(playfield, y+1, x, rotation, type) == true then break;
+
+      # change the y position of the block
+    y = y + 1;
+    #rotation = (rotation + 1) % tetrominos[type].size();
 
     # wait so we see something
-	wait(1000);
+    wait(500);
 }
