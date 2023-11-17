@@ -1,16 +1,7 @@
 # Configuration
 var playfield_size  = {"x": 10, "y": 20};
 
-# Define block size for a field of 10x20.
-# We calculate the vertical and horizontal block size and take the minimum.
-# This way we can guarantee, that the playfield is always completely visible.
-var block_size = math.floor(math.min(
-	canvas.height()/(playfield_size["y"]+2),
-	canvas.width()/(playfield_size["x"]+2)
-	));
 
-# We define the outline to be 1/8 of the block size
-var outline_size = block_size/8;
 
 # A dictionary of dictionaries of arrays containing the RGB values for the colors.
 # We will add more colors later
@@ -59,7 +50,62 @@ var colors = {
             }
 };
 
-var tetrominos = {
+
+
+
+
+
+class Playfield {
+public:
+	var bitmap = [];
+	var width, height;
+
+	constructor(width, height){
+		this.bitmap.push(Array(width + 2, "f"));
+		for 0:height do {
+			var row = ["f"];
+			for 0:width do row.push(0);
+			row.push("f");
+			this.bitmap.push(row);
+		};
+		this.bitmap.push(Array(width + 2, "f"));
+
+	}
+
+	function insert_tetromino(tetromino){
+		var bitmap = tetromino.bitmap();
+		for var i in 0:bitmap.size() do
+			for var j in 0:bitmap[i].size() do
+				if bitmap[i][j] != 0 then this.bitmap[tetromino.row + i][tetromino.column + j] = bitmap[i][j];
+	}
+
+	function remove_tetromino(tetromino){
+		var bitmap = tetromino.bitmap();
+		for var i in 0:bitmap.size() do
+			for var j in 0:bitmap[i].size() do
+				if bitmap[i][j] != 0 then this.bitmap[tetromino.row + i][tetromino.column + j] = 0;
+	}
+
+	function check_collision(tetromino){
+		var bitmap = tetromino.bitmap();
+		for var i in 0:bitmap.size() do
+			for var j in 0:bitmap[i].size() do {
+				if bitmap[i][j] != 0 then
+					if this.bitmap[tetromino.row + i][tetromino.column + j] != 0 then
+				return true;
+		}
+		return false;
+	}
+}
+
+
+
+# Starting position for the block
+class Tetromino {
+public:
+	var column, row, rotation, type;
+
+	var tetrominos = {
     "o": [[
             [0,0,0,0],
             [0,"o","o",0],
@@ -104,35 +150,51 @@ var tetrominos = {
         ]
 };
 
-function insert_tetromino(playfield, column, row, rotation, type){
-    var tetromino = tetrominos[type][rotation];
-
-    for var i in 0:tetromino.size() do
-        for var j in 0:tetromino[i].size() do
-            if tetromino[i][j] != 0 then playfield[column + i][row + j] = tetromino[i][j];
-}
-
-function remove_tetromino(playfield, column, row, rotation, type){
-    var tetromino = tetrominos[type][rotation];
-
-    for var i in 0:tetromino.size() do
-        for var j in 0:tetromino[i].size() do
-            if tetromino[i][j] != 0 then playfield[column + i][row + j] = 0;
-}
-
-function check_collision(playfield, column, row, rotation, type){
-	 var tetromino = tetrominos[type][rotation];
-
-	 for var i in 0:tetromino.size() do
-        for var j in 0:tetromino[i].size() do {
-			if tetromino[i][j] != 0 then
-			 	if playfield[column + i][row + j] != 0 then
-			return true;
+	constructor(type, column, row = 1, rotation = 0){
+		this.column = column;
+		this.row = row;
+		this.rotation = rotation;
+		this.type = type;
 	}
-	return false;
+
+	function bitmap(){
+		return this.tetrominos[this.type][this.rotation];
+	}
+
+	function drop(){
+		this.row = this.row + 1;
+	}
+
+	function undrop(){
+		this.row = this.row - 1;
+	}
 }
 
-# This is the function that draws the block for us. It takes pos_x and pos_y as arguments.
+class Renderer {
+	public:
+	# Define block size for a field of 10x20.
+	# We calculate the vertical and horizontal block size and take the minimum.
+	# This way we can guarantee, that the playfield is always completely visible.
+	var block_size;
+	# We define the outline to be 1/8 of the block size
+	var outline_size;
+
+	constructor(){
+		this.block_size = math.floor(math.min(
+		canvas.height()/(playfield_size["y"]+2),
+		canvas.width()/(playfield_size["x"]+2)
+		));
+
+		this.outline_size = this.block_size/8;
+	}
+
+	function render(playfield) {
+		 for var column in 0:playfield.bitmap.size() do
+			for var row in 0:playfield.bitmap[column].size() do
+				if (playfield.bitmap[column][row] != 0) then this.draw_block(column, row, playfield.bitmap[column][row]);
+	}
+
+	# This is the function that draws the block for us. It takes pos_x and pos_y as arguments.
 # Both are in the unit of blocks, as the conversion to pixels happens in this function.
 # The blocks get drawn as a square with light color, a triangle with darker color and a smaller square with base color on top of each other
 function draw_block(column, row, color) {
@@ -167,21 +229,34 @@ function draw_block(column, row, color) {
     );
 }
 
-var playfield = [];
-playfield.push(Array(playfield_size["x"] + 2, "f"));
-for 0:playfield_size["y"] do {
-	var row = ["f"];
-	for 0:playfield_size["x"] do row.push(0);
-	row.push("f");
-	playfield.push(row);
-};
-playfield.push(Array(playfield_size["x"] + 2, "f"));
+}
 
-# Starting position for the block
-var x = Integer((playfield_size["x"] + 2)/2 - 2);
-var y = 1;
-var rotation = 0;
-var type = "s";
+class TetrominoPool{
+	public:
+	var pool = [];
+
+	function fill_pool(){
+		var pool_ = ["o", "s", "z", "i", "j", "l", "t"];
+
+	 	while pool_.size() > 0 do {
+			var rand_idx = Integer((math.random() * pool_.size()));
+			this.pool.push(pool_[rand_idx]);
+			pool_.remove(rand_idx);
+		}
+	}
+
+	function get(){
+		if this.pool.size() == 0 then this.fill_pool();
+
+		return this.pool.pop();
+	}
+}
+
+var pool = TetrominoPool();
+var tetromino = Tetromino(pool.get(), Integer((playfield_size["x"] + 2)/2 - 2));
+var playfield = Playfield(playfield_size["x"], playfield_size["y"]);
+var renderer = Renderer();
+
 
 # To create the illusion of falling, we run an inifinte loop
 # where we draw the block, wait, then change the y position
@@ -191,20 +266,21 @@ while true do {
     canvas.setFillColor(1, 1, 1);
     canvas.clear();
 
-    insert_tetromino(playfield, y, x, rotation, type);
+	playfield.remove_tetromino(tetromino);
 
-    for var column in 0:playfield.size() do
-        for var row in 0:playfield[column].size() do
-            if (playfield[column][row] != 0) then draw_block(column, row, playfield[column][row]);
+	tetromino.drop();
+	if playfield.check_collision(tetromino) == true then {
+		tetromino.undrop();
+		playfield.insert_tetromino(tetromino);
+		tetromino = Tetromino(pool.get(), Integer((playfield_size["x"] + 2)/2 - 2));
+	}
 
-    remove_tetromino(playfield, y, x, rotation, type);
 
-	if check_collision(playfield, y+1, x, rotation, type) == true then break;
+    playfield.insert_tetromino(tetromino);
+	renderer.render(playfield);
 
-      # change the y position of the block
-    y = y + 1;
     #rotation = (rotation + 1) % tetrominos[type].size();
 
     # wait so we see something
-    wait(500);
+    wait(200);
 }
