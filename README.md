@@ -25,5 +25,5 @@ erlangen können.
 + Implementierung eines Tetrisbots (KI + Optimierung)
 
 ### Tutorial
-Für den Umgang mit diesem Repository gibt es [Tutorial-Repo](https://github.com/RUB-INI-Theory-of-Machine-Learning/hello-world).
+Für den Umgang mit diesem Repository gibt es ein [Tutorial-Repo](https://github.com/RUB-INI-Theory-of-Machine-Learning/hello-world).
 
