@@ -7,6 +7,9 @@ public:
 	var width, height;
 
 	constructor(width, height){
+		this.width = width;
+		this.height = height;
+		
 		this.bitmap.push(Array(width + 2, "f"));
 		for 0:height do {
 			var row = ["f"];
@@ -41,6 +44,34 @@ public:
 			}
 		}
 		return false;
+	}
+	
+	function remove_full_rows(){
+		var full_rows = [];
+		
+		for var row in 1:this.bitmap.size()-1 do {
+			var is_full = true;
+			for var column in 0:this.bitmap[row].size() do {
+				if this.bitmap[row][column] == 0 then {
+					is_full = false;
+					break;
+				}
+				# if column == this.bitmap[row].size()-1 then full_rows.push(row);
+				
+			}
+			if is_full then full_rows.push(row);
+		}
+		
+		
+		for var row_idx in full_rows do {
+			this.bitmap.remove(row_idx);
+			var row = ["f"];
+			for 0:this.width do row.push(0);
+			row.push("f");
+			this.bitmap.insert(1, row);
+		}
+		
+		return full_rows.size();
 	}
 }
 
@@ -280,6 +311,33 @@ class TetrominoPool{
 	}
 }
 
+var level_gravity = [
+		887, 	#level 0
+		820,  	#level 1
+		753,	#level 2
+		686,	#level 3
+		619,	#level 4
+		552,	#level 5
+		469,	#level 6
+		368,	#level 7
+		285,	#level 8
+		184,	#level 9
+		167, 	#level 10
+		151,	#level 11
+		134,	#level 12
+		117,	#level 13
+		100,	#level 14
+		100,	#level 15
+		84,	 	#level 16
+		84,		#level 17
+		67,		#level 18
+		67,		#level 19
+		50,		#level 20
+	];
+
+var base_score_values = [0, 40, 100, 300, 1200];
+
+
 # Main program
 var pool = TetrominoPool();
 var tetromino = Tetromino(pool.get(), Integer((playfield_size["x"] + 2)/2 - 2));
@@ -287,7 +345,11 @@ var playfield = Playfield(playfield_size["x"], playfield_size["y"]);
 var renderer = Renderer();
 
 # Gravity is the time in ms between two ticks. 
-var gravity = 100;
+var level = 0;
+var lines = 0;
+var score = 0;
+var soft_drop_start = 0;
+var gravity = level_gravity[level];
 var current_time = time();
 var spawned = false;
 
@@ -305,6 +367,18 @@ setEventHandler("timer", function(event) {
 			# that drop caused a collision, i.e. at least two blocks overlap. 
 			tetromino.undo();
 			playfield.insert_tetromino(tetromino);
+			var cleared_rows = playfield.remove_full_rows();
+			lines = lines + cleared_rows;
+			if level <= level_gravity.size() then level = lines // 10;
+			var soft_drop_points = tetromino.row - soft_drop_start;
+			print(soft_drop_points);
+			print(soft_drop_start);
+			print(tetromino.row);
+			score = score + base_score_values[cleared_rows] * (level + 1) + soft_drop_points;
+			#print(lines);
+			#print(level);
+			#print(score);
+			
 			if spawned then {
 				# We got a collision right after we spawned a new tetromino. Game over.
 				quitEventMode();
@@ -329,6 +403,10 @@ setEventHandler("canvas.keydown", function(event){
 	renderer.reset();
 	playfield.remove_tetromino(tetromino);
 	
+	if event.key == " " then {
+		if soft_drop_start == 0 then soft_drop_start = Integer(tetromino.row);
+		gravity = 50;
+	};
 	if event.key == "ArrowUp" then tetromino.rotate_left();
 	if event.key == "ArrowDown" then tetromino.rotate_right();
 	if event.key == "ArrowLeft" then tetromino.move_left();
@@ -341,4 +419,11 @@ setEventHandler("canvas.keydown", function(event){
 	renderer.render(playfield);
 });
 
+
+setEventHandler("canvas.keyup", function(event){
+	if event.key == " " then {
+		soft_drop_start = 0;
+		gravity = level_gravity[level];
+	}
+});
 enterEventMode();
