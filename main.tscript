@@ -412,7 +412,13 @@ class TetrominoPool{
 	}
 }
 
-var level_gravity = [
+
+
+
+class Game {
+	public:
+	var base_score_values = [0, 40, 100, 300, 1200];
+	var level_gravity = [
 		887, 	#level 0
 		820,  	#level 1
 		753,	#level 2
@@ -435,98 +441,113 @@ var level_gravity = [
 		67,		#level 19
 		50,		#level 20
 	];
+	
+	var level, lines, score, soft_drop_start, gravity, current_time, spawned;
+	var pool, tetromino, playfield, renderer;
 
-var base_score_values = [0, 40, 100, 300, 1200];
+	constructor(){
+		this.level = 9;
+		this.lines = 0;
+		this.score = 0;
+		this.soft_drop_start = 0;
+		this.gravity = level_gravity[this.level];
+		this.current_time = time();
+		this.spawned = false;
+	
+		
+		this.pool = TetrominoPool();
+		this.tetromino = Tetromino(this.pool.get(), Integer((playfield_size["x"] + 2)/2 - 2));
+		this.playfield = Playfield(playfield_size["x"], playfield_size["y"]);
+		this.renderer = Renderer(playfield_size["x"], playfield_size["y"]);
+	}
+	
+	function step(){
+		if time() - this.current_time > this.gravity then {
+			# reset time buffer
+			this.current_time = time();
 
+			# remove the tetromino from the playfield to do a "preliminary" drop. Before we insert the tetromino back into the playfield we have to check if that drop was legal. 
+			this.playfield.remove_tetromino(this.tetromino);
+			this.tetromino.drop();
+			if this.playfield.check_collision(this.tetromino) == true then {
+				# that drop caused a collision, i.e. at least two blocks overlap. 
+				this.tetromino.undo();
+				this.playfield.insert_tetromino(this.tetromino);
+				var cleared_rows = this.playfield.remove_full_rows();
+				this.lines = this.lines + cleared_rows;
+				if this.lines // 10 > this.level and this.level < this.level_gravity.size() then this.level = this.lines // 10;
+				var soft_drop_points = 0;
+				if this.soft_drop_start != 0 then {
+					soft_drop_points = this.tetromino.row - this.soft_drop_start;
+				}
+				this.score = this.score + this.base_score_values[cleared_rows] * (this.level + 1) + soft_drop_points;
+
+				this.soft_drop_start = 0;
+				this.gravity = this.level_gravity[this.level];
+
+				# spawn a new tetromino
+				this.tetromino = Tetromino(this.pool.get(), Integer((playfield_size["x"] + 2)/2 - 2));
+				if this.spawned then {
+					# We got a collision right after we spawned a new tetromino. Game over.
+					quitEventMode();				
+					this.playfield.insert_tetromino(this.tetromino);
+					this.renderer.render(this.playfield, this.score, this.lines, this.level);
+					return;
+				}
+
+				this.spawned = true;
+			}
+			else this.spawned = false; # the new tetromino dropped successfully, so it is just a normal collision in the next step (not a spawn collision)
+			this.playfield.insert_tetromino(this.tetromino);
+			this.renderer.render(this.playfield, this.score, this.lines, this.level, this.pool.next());
+		}
+	}
+	
+	function keydown(key){
+		this.playfield.remove_tetromino(this.tetromino);
+	
+		if key == " " then {
+			if this.soft_drop_start == 0 then this.soft_drop_start = Integer(this.tetromino.row);
+				this.gravity = 50;
+			};
+			if key == "ArrowUp" then this.tetromino.rotate_left();
+			if key == "ArrowDown" then this.tetromino.rotate_right();
+			if key == "ArrowLeft" then this.tetromino.move_left();
+			if key == "ArrowRight" then this.tetromino.move_right();
+			if this.playfield.check_collision(this.tetromino) then {
+				this.tetromino.undo(); # The action caused an invalid playfield state. Undo it. 
+		}
+
+		this.playfield.insert_tetromino(this.tetromino);
+		this.renderer.render(this.playfield, this.score, this.lines, this.level, this.pool.next());
+	}
+	
+	function keyup(key){
+		if key == " " and this.soft_drop_start != 0 then {
+		this.soft_drop_start = 0;
+		this.gravity = this.level_gravity[this.level];
+	}
+	}
+}
 
 # Main program
-var pool = TetrominoPool();
-var tetromino = Tetromino(pool.get(), Integer((playfield_size["x"] + 2)/2 - 2));
-var playfield = Playfield(playfield_size["x"], playfield_size["y"]);
-var renderer = Renderer(playfield_size["x"], playfield_size["y"]);
-
-# Gravity is the time in ms between two ticks. 
-var level = 9;
-var lines = 0;
-var score = 0;
-var soft_drop_start = 0;
-var gravity = level_gravity[level];
-var current_time = time();
-var spawned = false;
+var games = [Game()];
 
 # Timer event that contains the logic of creating a Tetromino, letting it drop over time and checking for (spawn) collisions
 setEventHandler("timer", function(event) {
-	if time() - current_time > gravity then {
-		# reset time buffer
-		current_time = time();
-		
-		# remove the tetromino from the playfield to do a "preliminary" drop. Before we insert the tetromino back into the playfield we have to check if that drop was legal. 
-		playfield.remove_tetromino(tetromino);
-		tetromino.drop();
-		if playfield.check_collision(tetromino) == true then {
-		
-			
-			# that drop caused a collision, i.e. at least two blocks overlap. 
-			tetromino.undo();
-			playfield.insert_tetromino(tetromino);
-			var cleared_rows = playfield.remove_full_rows();
-			lines = lines + cleared_rows;
-			if lines // 10 > level and level < level_gravity.size() then level = lines // 10;
-			var soft_drop_points = 0;
-			if soft_drop_start != 0 then {
-				soft_drop_points = tetromino.row - soft_drop_start;
-			}
-			score = score + base_score_values[cleared_rows] * (level + 1) + soft_drop_points;
-			
-			soft_drop_start = 0;
-			gravity = level_gravity[level];
-		
-			
-			if spawned then {
-				# We got a collision right after we spawned a new tetromino. Game over.
-				quitEventMode();
-				# Draw another tetromino on top for show (like in the original game)
-				tetromino = Tetromino(pool.get(), Integer((playfield_size["x"] + 2)/2 - 2));
-				playfield.insert_tetromino(tetromino);
-				renderer.render(playfield, score, lines, level);
-				return;
-			}
-			# spawn a new tetromino
-			tetromino = Tetromino(pool.get(), Integer((playfield_size["x"] + 2)/2 - 2));
-			spawned = true;
-		}
-		else spawned = false; # the new tetromino dropped successfully, so it is just a normal collision in the next step (not a spawn collision)
-		playfield.insert_tetromino(tetromino);
-		renderer.render(playfield, score, lines, level, pool.next());
-	}
+	for var game in games do
+		game.step();
 });
 
 # Event handler that handles all keyboard inputs
 setEventHandler("canvas.keydown", function(event){
-	playfield.remove_tetromino(tetromino);
-	
-	if event.key == " " then {
-		if soft_drop_start == 0 then soft_drop_start = Integer(tetromino.row);
-	
-		gravity = 50;
-	};
-	if event.key == "ArrowUp" then tetromino.rotate_left();
-	if event.key == "ArrowDown" then tetromino.rotate_right();
-	if event.key == "ArrowLeft" then tetromino.move_left();
-	if event.key == "ArrowRight" then tetromino.move_right();
-	if playfield.check_collision(tetromino) then {
-		tetromino.undo(); # The action caused an invalid playfield state. Undo it. 
-	}
-
-	playfield.insert_tetromino(tetromino);
-	renderer.render(playfield, score, lines, level, pool.next());
+	for var game in games do
+		game.keydown(event.key);
 });
 
 
 setEventHandler("canvas.keyup", function(event){
-	if event.key == " " and soft_drop_start != 0 then {
-		soft_drop_start = 0;
-		gravity = level_gravity[level];
-	}
+	for var game in games do
+		game.keyup(event.key);
 });
 enterEventMode();
