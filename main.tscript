@@ -80,7 +80,7 @@ class Tetromino {
 public:
 	var column, row, rotation, type, max_rotations, previous_state;
 
-	var tetrominos = {
+	static var tetrominos = {
     "o": [[
             [0,0,0,0],
             [0,"o","o",0],
@@ -270,7 +270,7 @@ public:
 		
 	}
 
-	function render(playfield, score, lines, level) {
+	function render(playfield, score, lines, level, next_tetromino) {
 		var bitmap_diff = [];
 		if this.p_bitmap == null then {
 			bitmap_diff = playfield.bitmap;
@@ -289,51 +289,57 @@ public:
 			}
 		}
 		this.p_bitmap = deepcopy(playfield.bitmap);
+		this.draw_playfield(bitmap_diff);
+		
+		if next_tetromino != this.p_tetromino then {
+			this.p_tetromino = next_tetromino;
+			this.draw_next_tetromino(Tetromino.tetrominos[next_tetromino][0]);
+		}
 		
 		if score != this.p_score then {
 			this.p_score = score;
-			this.draw_score(score);
+			this.draw_text(score, 3);
 		}
 		if lines != this.p_lines then {
 			this.p_lines = lines;
-			this.draw_lines(lines);
+			this.draw_text(lines, 6);
 		}
 		if level != this.p_level then {
 			this.p_level = level;
-			this.draw_level(level);
+			this.draw_text(level, 9);
 		}
-		this.draw_playfield(bitmap_diff);
+		
 	}
 	
-	function draw_score(score){
+	function draw_next_tetromino(bitmap){
 		canvas.setFillColor(0,0,0);
-		canvas.fillRect(block_size * (this.width + 3), 3 * block_size -1, 4 * block_size, 2 * block_size);
+		canvas.fillRect(block_size * (this.width + 2.5) , 16 * block_size, 4 * block_size, 4 * block_size);
 		
-		canvas.setFillColor(1,1,1);
-		canvas.text(block_size * (this.width + 3), 3 * block_size, score);
+		for var column in 0:bitmap.size() do
+			for var row in 0:bitmap[column].size() do {
+				if (bitmap[column][row] != 0) then this.draw_block(
+				column + 16, 
+				row + 2.5 + this.width, 
+				bitmap[column][row]
+				);
+			}
+
 	}
 	
-	function draw_lines(lines){
-		canvas.setFillColor(0,0,0);
-		canvas.fillRect(block_size * (this.width + 3) , 6 * block_size -1, 4 * block_size, 2 * block_size);
-		
-		canvas.setFillColor(1,1,1);
-		canvas.text(block_size * (this.width + 3), 6 * block_size, lines);
-	}
-	
-	function draw_level(level){
-		canvas.setFillColor(0,0,0);
-		canvas.fillRect(block_size * (this.width + 3), 9 * block_size -1, 4 * block_size, 2 * block_size);
-		
-		canvas.setFillColor(1,1,1);
-		canvas.text(block_size * (this.width + 3), 9 * block_size, level);
-	}
 	function draw_playfield(bitmap){
 		for var column in 0:bitmap.size() do
 			for var row in 0:bitmap[column].size() do {
 				if (bitmap[column][row] == " ") then this.draw_background(column, row);
 				else if (bitmap[column][row] != 0) then this.draw_block(column, row, bitmap[column][row]);
 			}
+	}
+	
+	function draw_text(text, row){
+		canvas.setFillColor(0,0,0);
+		canvas.fillRect(block_size * (this.width + 3) , row * block_size -1, 4 * block_size, 2 * block_size);
+		
+		canvas.setFillColor(1,1,1);
+		canvas.text(block_size * (this.width + 3), row * block_size, text);
 	}
 	
 	function draw_background(column, row){
@@ -382,6 +388,9 @@ class TetrominoPool{
 	public:
 	var pool = [];
 
+	constructor(){
+		this.fill_pool();
+	}
 	function fill_pool(){
 		var pool_ = ["o", "s", "z", "i", "j", "l", "t"];
 
@@ -393,8 +402,13 @@ class TetrominoPool{
 	}
 
 	function get(){
+		var tetromino = this.pool.pop();
 		if this.pool.size() == 0 then this.fill_pool();
-		return this.pool.pop();
+		return tetromino;
+	}
+	
+	function next(){
+		return this.pool[this.pool.size()-1];
 	}
 }
 
@@ -432,7 +446,7 @@ var playfield = Playfield(playfield_size["x"], playfield_size["y"]);
 var renderer = Renderer(playfield_size["x"], playfield_size["y"]);
 
 # Gravity is the time in ms between two ticks. 
-var level = 0;
+var level = 9;
 var lines = 0;
 var score = 0;
 var soft_drop_start = 0;
@@ -450,8 +464,7 @@ setEventHandler("timer", function(event) {
 		playfield.remove_tetromino(tetromino);
 		tetromino.drop();
 		if playfield.check_collision(tetromino) == true then {
-			soft_drop_start = 0;
-			gravity = level_gravity[level];
+		
 			
 			# that drop caused a collision, i.e. at least two blocks overlap. 
 			tetromino.undo();
@@ -463,13 +476,11 @@ setEventHandler("timer", function(event) {
 			if soft_drop_start != 0 then {
 				soft_drop_points = tetromino.row - soft_drop_start;
 			}
-			print(soft_drop_points);
-			print(soft_drop_start);
-			print(tetromino.row);
 			score = score + base_score_values[cleared_rows] * (level + 1) + soft_drop_points;
-			#print(lines);
-			#print(level);
-			#print(score);
+			
+			soft_drop_start = 0;
+			gravity = level_gravity[level];
+		
 			
 			if spawned then {
 				# We got a collision right after we spawned a new tetromino. Game over.
@@ -477,7 +488,7 @@ setEventHandler("timer", function(event) {
 				# Draw another tetromino on top for show (like in the original game)
 				tetromino = Tetromino(pool.get(), Integer((playfield_size["x"] + 2)/2 - 2));
 				playfield.insert_tetromino(tetromino);
-				renderer.render(playfield);
+				renderer.render(playfield, score, lines, level);
 				return;
 			}
 			# spawn a new tetromino
@@ -486,7 +497,7 @@ setEventHandler("timer", function(event) {
 		}
 		else spawned = false; # the new tetromino dropped successfully, so it is just a normal collision in the next step (not a spawn collision)
 		playfield.insert_tetromino(tetromino);
-		renderer.render(playfield, score, lines, level);
+		renderer.render(playfield, score, lines, level, pool.next());
 	}
 });
 
@@ -496,6 +507,7 @@ setEventHandler("canvas.keydown", function(event){
 	
 	if event.key == " " then {
 		if soft_drop_start == 0 then soft_drop_start = Integer(tetromino.row);
+	
 		gravity = 50;
 	};
 	if event.key == "ArrowUp" then tetromino.rotate_left();
@@ -507,12 +519,12 @@ setEventHandler("canvas.keydown", function(event){
 	}
 
 	playfield.insert_tetromino(tetromino);
-	renderer.render(playfield, score, lines, level);
+	renderer.render(playfield, score, lines, level, pool.next());
 });
 
 
 setEventHandler("canvas.keyup", function(event){
-	if event.key == " " then {
+	if event.key == " " and soft_drop_start != 0 then {
 		soft_drop_start = 0;
 		gravity = level_gravity[level];
 	}
