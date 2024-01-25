@@ -46,6 +46,22 @@ public:
 		return false;
 	}
 	
+	function insert_rows(number){
+		var hole = math.floor(math.random() * this.width);
+		for 0:number do {
+			this.bitmap.remove(1);
+			
+			var row = [];
+			row.push("f");
+			for var column in 0:this.width do {
+				if column == hole then row.push(0);
+				else row.push("n");
+			}
+			row.push("f");
+			this.bitmap.insert(this.height, row);
+		}
+	}
+	
 	function remove_full_rows(){
 		var full_rows = [];
 		
@@ -426,8 +442,6 @@ class TetrominoPool{
 }
 
 
-
-
 class Game {
 	public:
 	var incoming_lines = 0;
@@ -496,11 +510,6 @@ class Game {
 				this.tetromino.undo();
 				this.playfield.insert_tetromino(this.tetromino);
 				
-				if this.incoming_lines > 0 then {
-					this.playfield.insert_rows(this.incoming_lines);
-					this.incoming_lines = 0;
-				}
-				
 				var cleared_rows = this.playfield.remove_full_rows();
 				if cleared_rows > 0 then {
 					this.lines = this.lines + cleared_rows;
@@ -516,6 +525,11 @@ class Game {
 					
 					if cleared_rows < 4 then this.outgoing_lines += cleared_rows - 1;
 					else this.outgoing_lines += 4;
+				}
+				
+				if this.incoming_lines > 0 then {
+					this.playfield.insert_rows(this.incoming_lines);
+					this.incoming_lines = 0;
 				}
 				
 				# spawn a new tetromino
@@ -555,26 +569,119 @@ class Game {
 	}
 	
 	function keyup(key){
-		if key == " " and this.soft_drop_start != 0 then {
-		this.soft_drop_start = 0;
-		this.gravity = this.level_gravity[this.level];
+		if key == this.bindings[4] and this.soft_drop_start != 0 then {
+			this.soft_drop_start = 0;
+			this.gravity = this.level_gravity[this.level];
+		}
 	}
+	
+	function get_incoming_lines(){
+		return this.incoming_lines;	
+	}
+	
+	function add_incoming_lines(lines){
+		this.incoming_lines += lines;
+	}
+	
+	function get_outgoing_lines(){
+		return this.outgoing_lines;	
+	}
+	
+	function add_outgoing_lines(lines){
+		this.outgoing_lines += lines;
 	}
 }
 
+class Bot {
+	public:
+	var current_time, speed;
+	var optimal_position, current_tetromino, next_tetromino;
+	var game;
+	
+	constructor(game, speed=100){
+		this.game = game;
+		this.speed = speed;
+		this.current_time = time() + speed/2;
+	}
+	
+	function step(){
+		if time() - this.current_time > this.speed then {
+			# reset time buffer
+			this.current_time = time();
+			
+			if this.optimal_position == null or 
+				(
+					this.current_tetromino != this.game.tetromino.type or  
+				 	this.next_tetromino != this.game.pool.next()
+				 )
+			then {
+				this.current_tetromino = this.game.tetromino.type;
+				this.next_tetromino = this.game.pool.next();
+				this.optimal_position = this.find_optimal_position(this.game.tetromino, this.game.playfield);
+				print("optimal position found");
+			}
+			
+			
+			
+			this.game.playfield.remove_tetromino(this.game.tetromino);
+			
+			if this.game.tetromino.rotation < this.optimal_position["rotation"] then this.game.tetromino.rotate_left();
+			else if this.game.tetromino.rotation > this.optimal_position["rotation"] then this.game.tetromino.rotate_right();
+			else if this.game.tetromino.column > this.optimal_position["column"] then this.game.tetromino.move_left();
+			else if this.game.tetromino.column < this.optimal_position["column"] then this.game.tetromino.move_right();
+			
+			if this.game.playfield.check_collision(this.game.tetromino) then {
+				this.game.tetromino.undo(); # The action caused an invalid playfield state. Undo it. 
+			}
+
+			
+			this.game.playfield.insert_tetromino(this.game.tetromino);
+			this.game.renderer.render(this.game.playfield, this.game.score, this.game.lines, this.game.level, this.game.pool.next());
+
+		}
+		
+		this.game.step();
+	}
+	
+	function find_optimal_position(tetromino, playfield){
+		return {
+			"column": math.floor(math.random() * playfield.width + 1),
+			"rotation": math.floor(math.random() * tetromino.max_rotations))
+		};
+	}
+	
+	function keyup(e){}
+	function keydown(e){}
+	
+	function get_incoming_lines(){
+		return this.game.get_incoming_lines();	
+	}
+	
+	function add_incoming_lines(lines){
+		this.game.add_incoming_lines(lines);
+	}
+	
+	function get_outgoing_lines(){
+		return this.game.get_outgoing_lines();	
+	}
+	
+	function add_outgoing_lines(lines){
+		this.game.add_outgoing_lines(lines);
+	}
+}
+ 
 # Main program
 var games = [
 	Game(v_canvas=[0, 0, canvas.width(), canvas.height()/2]),
-	Game(v_canvas=[0, canvas.height()/2, canvas.width(), canvas.height()/2], bindings=["8", "5", "4", "6", "0"])
-	];
-	# , Game()
+	Bot(Game(v_canvas=[0, canvas.height()/2, canvas.width(), canvas.height()/2]))
+];
 
 # Timer event that contains the logic of creating a Tetromino, letting it drop over time and checking for (spawn) collisions
 setEventHandler("timer", function(event) {
 	for var game_idx in 0:games.size() do {
 		var game = games[game_idx];
-		if game.outgoing_lines > 0 then {
-			games[(game_idx + 1) % games.size()].incoming_lines += game.outgoing_lines;
+		if game.get_outgoing_lines() > 0 then {
+			games[(game_idx + 1) % games.size()].add_incoming_lines(game.outgoing_lines());
 			game.outgoing_lines = 0;
 		}
 		try {
