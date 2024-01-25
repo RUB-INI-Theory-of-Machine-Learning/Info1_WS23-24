@@ -185,8 +185,9 @@ public:
 # on the canvas here in this Renderer class
 class Renderer {
 public:
-	var width, height;
+	var playfield_width, playfield_height;
 	var block_size, outline_size;
+	var x, y, width, height;
 	
 	var sidebar_size = 7;
 	
@@ -232,19 +233,29 @@ public:
 			"base": [0, 204, 204],
 			"light": [0, 255, 255],
 			"dark": [0, 153, 153],
-		}
+		},
+		"n": {
+			"base": [149, 149, 149],
+			"light": [183, 183, 183] ,
+			"dark": [81, 81, 81]
+		},
 	};
 
-	constructor(width, height){
-		this.width = width;
-		this.height = height;
+	constructor(playfield_width, playfield_height, x, y, width, height){
+		this.playfield_width = playfield_width;
+		this.playfield_height = playfield_height;
+		
+		this.x = math.floor(x);
+		this.y = math.floor(y);
+		this.width = math.floor(width);
+		this.height = math.floor(height);
 		
 		# Define block size for a field of 10x20.
 		# We calculate the vertical and horizontal block size and take the minimum.
 		# This way we can guarantee, that the playfield is always completely visible.
 		this.block_size = math.floor(math.min(
-		canvas.height()/(playfield_size["y"]+2),
-		canvas.width()/(playfield_size["x"]+2 + this.sidebar_size)
+		this.height/(playfield_size["y"]+2),
+		this.width/(playfield_size["x"]+2 + this.sidebar_size)
 		));
 
 		# We define the outline to be 1/8 of the block size
@@ -252,21 +263,23 @@ public:
 		
 		# set background color of the canvas once
 		canvas.setFillColor(0, 0, 0);
-		canvas.clear();
+		canvas.fillRect(this.x , this.y , this.width, this.height);
+		
 		
 		# draw sidebar once
 		for var column in 0:this.sidebar_size do {
-			for var row in 0:height+2 do {
-				if (row == 0 or row == height+1 or column == this.sidebar_size-1) then
-				this.draw_block(row, column + width + 1, "f");
+			for var row in 0:playfield_height+2 do {
+				if (row == 0 or row == playfield_height+1 or column == this.sidebar_size-1) then
+				
+				this.draw_block(row, column + playfield_width + 1, "f");
 			}
 		}
 		
 		canvas.setFillColor(1,1,1);
 		canvas.setFont("Comic Sans MS", block_size);
-		canvas.text(block_size * (this.width+3), 2* block_size, "Score");
-		canvas.text(block_size * (this.width+3), 5* block_size, "Lines");
-		canvas.text(block_size * (this.width+3), 8* block_size, "Level");
+		canvas.text(this.x + block_size * (this.playfield_width+3), this.y + 2* block_size, "Score");
+		canvas.text(this.x + block_size * (this.playfield_width+3), this.y + 5* block_size, "Lines");
+		canvas.text(this.x + block_size * (this.playfield_width+3), this.y + 8* block_size, "Level");
 		
 	}
 
@@ -313,13 +326,13 @@ public:
 	
 	function draw_next_tetromino(bitmap){
 		canvas.setFillColor(0,0,0);
-		canvas.fillRect(block_size * (this.width + 2.5) , 16 * block_size, 4 * block_size, 4 * block_size);
+		canvas.fillRect(this.x + block_size * (this.playfield_width + 2.5) ,this.y + 16 * block_size, 4 * block_size, 4 * block_size);
 		
 		for var column in 0:bitmap.size() do
 			for var row in 0:bitmap[column].size() do {
 				if (bitmap[column][row] != 0) then this.draw_block(
 				column + 16, 
-				row + 2.5 + this.width, 
+				row + 2.5 + this.playfield_width, 
 				bitmap[column][row]
 				);
 			}
@@ -336,23 +349,23 @@ public:
 	
 	function draw_text(text, row){
 		canvas.setFillColor(0,0,0);
-		canvas.fillRect(block_size * (this.width + 3) , row * block_size -1, 4 * block_size, 2 * block_size);
+		canvas.fillRect(this.x + block_size * (this.playfield_width + 3) , this.y + row * block_size -1, 4 * block_size, 2 * block_size);
 		
 		canvas.setFillColor(1,1,1);
-		canvas.text(block_size * (this.width + 3), row * block_size, text);
+		canvas.text(this.x + block_size * (this.playfield_width + 3), this.y + row * block_size, text);
 	}
 	
 	function draw_background(column, row){
 		canvas.setFillColor(0, 0, 0);
-		canvas.fillRect(row * block_size, column * block_size, block_size, block_size);
+		canvas.fillRect(this.x + row * block_size, this.y + column * block_size, block_size, block_size);
 	}
 
 	# This is the function that draws the block for us. It takes pos_x and pos_y as arguments.
 	# Both are in the unit of blocks, as the conversion to pixels happens in this function.
 	# The blocks get drawn as a square with light color, a triangle with darker color and a smaller square with base color on top of each other
 	function draw_block(column, row, color) {
-		var pos_x = row * block_size;
-		var pos_y = column * block_size;
+		var pos_x = x + row * block_size;
+		var pos_y = y + column * block_size;
 
 		# lighter edges
 		canvas.setFillColor(colors[color]["light"][0]/255,
@@ -417,6 +430,9 @@ class TetrominoPool{
 
 class Game {
 	public:
+	var incoming_lines = 0;
+	var outgoing_lines = 0;
+	
 	var base_score_values = [0, 40, 100, 300, 1200];
 	var level_gravity = [
 		887, 	#level 0
@@ -443,9 +459,15 @@ class Game {
 	];
 	
 	var level, lines, score, soft_drop_start, gravity, current_time, spawned;
+	var bindings;
 	var pool, tetromino, playfield, renderer;
 
-	constructor(){
+	constructor(v_canvas = [0,0,0,0], bindings=["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", " "]){
+		this.bindings = bindings;
+		
+		if(v_canvas[2] == 0) then v_canvas[2] = canvas.width();
+		if(v_canvas[3] == 0) then v_canvas[3] = canvas.height();
+		
 		this.level = 9;
 		this.lines = 0;
 		this.score = 0;
@@ -458,7 +480,7 @@ class Game {
 		this.pool = TetrominoPool();
 		this.tetromino = Tetromino(this.pool.get(), Integer((playfield_size["x"] + 2)/2 - 2));
 		this.playfield = Playfield(playfield_size["x"], playfield_size["y"]);
-		this.renderer = Renderer(playfield_size["x"], playfield_size["y"]);
+		this.renderer = Renderer(playfield_size["x"], playfield_size["y"], v_canvas[0], v_canvas[1], v_canvas[2], v_canvas[3]);
 	}
 	
 	function step(){
@@ -473,26 +495,36 @@ class Game {
 				# that drop caused a collision, i.e. at least two blocks overlap. 
 				this.tetromino.undo();
 				this.playfield.insert_tetromino(this.tetromino);
-				var cleared_rows = this.playfield.remove_full_rows();
-				this.lines = this.lines + cleared_rows;
-				if this.lines // 10 > this.level and this.level < this.level_gravity.size() then this.level = this.lines // 10;
-				var soft_drop_points = 0;
-				if this.soft_drop_start != 0 then {
-					soft_drop_points = this.tetromino.row - this.soft_drop_start;
+				
+				if this.incoming_lines > 0 then {
+					this.playfield.insert_rows(this.incoming_lines);
+					this.incoming_lines = 0;
 				}
-				this.score = this.score + this.base_score_values[cleared_rows] * (this.level + 1) + soft_drop_points;
+				
+				var cleared_rows = this.playfield.remove_full_rows();
+				if cleared_rows > 0 then {
+					this.lines = this.lines + cleared_rows;
+					if this.lines // 10 > this.level and this.level < this.level_gravity.size() then this.level = this.lines // 10;
+					var soft_drop_points = 0;
+					if this.soft_drop_start != 0 then {
+						soft_drop_points = this.tetromino.row - this.soft_drop_start;
+					}
+					this.score = this.score + this.base_score_values[cleared_rows] * (this.level + 1) + soft_drop_points;
 
-				this.soft_drop_start = 0;
-				this.gravity = this.level_gravity[this.level];
-
+					this.soft_drop_start = 0;
+					this.gravity = this.level_gravity[this.level];
+					
+					if cleared_rows < 4 then this.outgoing_lines += cleared_rows - 1;
+					else this.outgoing_lines += 4;
+				}
+				
 				# spawn a new tetromino
 				this.tetromino = Tetromino(this.pool.get(), Integer((playfield_size["x"] + 2)/2 - 2));
 				if this.spawned then {
 					# We got a collision right after we spawned a new tetromino. Game over.
-					quitEventMode();				
 					this.playfield.insert_tetromino(this.tetromino);
-					this.renderer.render(this.playfield, this.score, this.lines, this.level);
-					return;
+					this.renderer.render(this.playfield, this.score, this.lines, this.level, this.pool.next());
+					throw "Game Over";
 				}
 
 				this.spawned = true;
@@ -506,14 +538,14 @@ class Game {
 	function keydown(key){
 		this.playfield.remove_tetromino(this.tetromino);
 	
-		if key == " " then {
+		if key == this.bindings[4] then {
 			if this.soft_drop_start == 0 then this.soft_drop_start = Integer(this.tetromino.row);
 				this.gravity = 50;
 			};
-			if key == "ArrowUp" then this.tetromino.rotate_left();
-			if key == "ArrowDown" then this.tetromino.rotate_right();
-			if key == "ArrowLeft" then this.tetromino.move_left();
-			if key == "ArrowRight" then this.tetromino.move_right();
+			if key == this.bindings[0] then this.tetromino.rotate_left();
+			if key == this.bindings[1] then this.tetromino.rotate_right();
+			if key == this.bindings[2] then this.tetromino.move_left();
+			if key == this.bindings[3] then this.tetromino.move_right();
 			if this.playfield.check_collision(this.tetromino) then {
 				this.tetromino.undo(); # The action caused an invalid playfield state. Undo it. 
 		}
@@ -531,12 +563,27 @@ class Game {
 }
 
 # Main program
-var games = [Game()];
+var games = [
+	Game(v_canvas=[0, 0, canvas.width(), canvas.height()/2]),
+	Game(v_canvas=[0, canvas.height()/2, canvas.width(), canvas.height()/2], bindings=["8", "5", "4", "6", "0"])
+	];
+	# , Game()
 
 # Timer event that contains the logic of creating a Tetromino, letting it drop over time and checking for (spawn) collisions
 setEventHandler("timer", function(event) {
-	for var game in games do
-		game.step();
+	for var game_idx in 0:games.size() do {
+		var game = games[game_idx];
+		if game.outgoing_lines > 0 then {
+			games[(game_idx + 1) % games.size()].incoming_lines += game.outgoing_lines;
+			game.outgoing_lines = 0;
+		}
+		try {
+			game.step();
+		}
+		catch var e do {
+			quitEventMode();
+		}
+	}
 });
 
 # Event handler that handles all keyboard inputs
