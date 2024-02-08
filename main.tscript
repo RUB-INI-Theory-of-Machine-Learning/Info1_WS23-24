@@ -694,7 +694,87 @@ class Bot {
 	}
 	
 	function score(playfield){
-		return math.random();
+		var weights = {
+			"height": 1,
+			"holes": 2,
+			"roughness": 1
+		};
+		
+		return (
+			this.height(playfield.bitmap) * weights["height"] + 
+			this.holes(playfield.bitmap) * weights["holes"] + 
+			this.roughness(playfield.bitmap) * weights["roughness"]
+			);
+	}
+	
+	function roughness(playfield){
+		var playfield_heights = [];
+		
+		for var col_idx in 1:playfield[0].size()-1 do {
+			for var row_idx in 1:playfield.size()-1 do {
+				if playfield[row_idx][col_idx] != 0 then {
+					playfield_heights.push(row_idx);
+					break;
+				}
+			}
+		}
+
+		var score = 0;
+		
+		for var height_idx in 0:playfield_heights.size()-1 do {
+			score += math.abs(playfield_heights[height_idx] - playfield_heights[height_idx+1]);
+		}
+		
+		return score;
+	}
+	
+	function holes(playfield){
+		var holes = 0;
+		
+		for var col_idx in 1:playfield[0].size()-1 do {
+			var flag = false;
+			for var row_idx in 1:playfield.size()-1 do {
+				if playfield[row_idx][col_idx] != 0 then flag = true;
+				if flag and playfield[row_idx][col_idx] == 0 then holes +=1;
+			}
+		}
+		
+		return holes;
+	}
+	
+	function height(bitmap){
+		var zones = [
+			{"boundaries": [0,12], "value": 0},
+			{"boundaries": [13,16], "value": 3},
+			{"boundaries": [16, bitmap.size()], "value": 10}
+		];
+		
+		var height = bitmap.size();
+		for var row_idx in 0:bitmap.size() do {
+			var empty = true;
+			
+			for var block in bitmap[row_idx] do {
+			
+				if block != 0 and block != "f" then {
+	
+					empty = false;
+					break;
+				}
+			}
+			
+			if empty == false then {
+				height = bitmap.size() - row_idx;
+				break;
+			}
+			
+		
+			
+			
+		}
+		for var zone in zones do {
+				if height >= zone["boundaries"][0] and height <= zone["boundaries"][1] then
+					return zone["value"];
+			}
 	}
 	
 	function keyup(e){}
